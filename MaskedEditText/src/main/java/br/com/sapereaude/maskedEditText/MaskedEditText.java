@@ -154,7 +154,7 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 
 				if (hasFocus()) {
 					selectionChanged = false;
-					//      setSelection(lastValidPosition());
+					setSelection(lastValidPosition());
 				}
 			}
 		});
@@ -305,7 +305,7 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 			}
 
 			selectionChanged = false;
-			//  setSelection(selection);
+			setSelection(selection);
 
 			editingBefore = false;
 			editingOnChanged = false;
