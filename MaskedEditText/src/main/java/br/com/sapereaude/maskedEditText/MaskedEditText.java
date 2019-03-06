@@ -20,8 +20,9 @@ import static android.content.ContentValues.TAG;
 
 public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 
-    public static final String SPACE = " ";
-    private String mask;
+	public static final String SPACE = " ";
+	protected int maxRawLength;
+	private String mask;
 	private char charRepresentation;
 	private boolean keepHint;
 	private int[] rawToMask;
@@ -33,15 +34,14 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 	private int selection;
 	private boolean initialized;
 	private boolean ignore;
-	protected int maxRawLength;
 	private int lastValidMaskPosition;
 	private boolean selectionChanged;
-	private OnFocusChangeListener focusChangeListener;
-    private String allowedChars;
-    private String deniedChars;
+	private View.OnFocusChangeListener focusChangeListener;
+	private String allowedChars;
+	private String deniedChars;
 
 
-    public MaskedEditText(Context context) {
+	public MaskedEditText(Context context) {
 		super(context);
 		init();
 	}
@@ -50,13 +50,13 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		super(context, attrs);
 		init();
 
-		TypedArray attributes = context.obtainStyledAttributes(attrs, R.styleable.MaskedEditText);
-		mask = attributes.getString(R.styleable.MaskedEditText_mask);
+		TypedArray attributes = context.obtainStyledAttributes(attrs, br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText);
+		mask = attributes.getString(br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText_mask);
 
-        allowedChars = attributes.getString(R.styleable.MaskedEditText_allowed_chars);
-        deniedChars = attributes.getString(R.styleable.MaskedEditText_denied_chars);
+		allowedChars = attributes.getString(br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText_allowed_chars);
+		deniedChars = attributes.getString(br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText_denied_chars);
 
-		String representation = attributes.getString(R.styleable.MaskedEditText_char_representation);
+		String representation = attributes.getString(br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText_char_representation);
 
 		if(representation == null) {
 			charRepresentation = '#';
@@ -64,7 +64,7 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 			charRepresentation = representation.charAt(0);
 		}
 
-		keepHint = attributes.getBoolean(R.styleable.MaskedEditText_keep_hint, false);
+		keepHint = attributes.getBoolean(br.com.sapereaude.maskedEditText.R.styleable.MaskedEditText_keep_hint, false);
 
 		cleanUp();
 
@@ -76,12 +76,17 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 //				case EditorInfo.IME_ACTION_NEXT:
 					// fixing actionNext
 //					return false;
-				default:
-					return true;
+					default:
+						return true;
 				}
 			}
 		});
 		attributes.recycle();
+	}
+
+	public MaskedEditText(Context context, AttributeSet attrs, int defStyle) {
+		super(context, attrs, defStyle);
+		init();
 	}
 
 	@Override
@@ -90,19 +95,17 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		final Bundle state = new Bundle();
 		state.putParcelable("super", superParcellable);
 		state.putString("text", getRawText());
-		state.putBoolean("keepHint", isKeepHint());
 		return state;
 	}
 
 	@Override
 	public void onRestoreInstanceState(Parcelable state) {
 		Bundle bundle = (Bundle) state;
-		keepHint = bundle.getBoolean("keepHint", false);
 		super.onRestoreInstanceState(((Bundle) state).getParcelable("super"));
 		final String text = bundle.getString("text");
 
-		setText(text);
 		Log.d(TAG, "onRestoreInstanceState: " + text);
+		setText(text);
 	}
 
 	@Override
@@ -130,9 +133,9 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		editingOnChanged = true;
 		editingAfter = true;
 		if(hasHint() && rawText.length() == 0) {
-            this.setText(makeMaskedTextWithHint());
+			this.setText(makeMaskedTextWithHint());
 		} else {
-            this.setText(makeMaskedText());
+			this.setText(makeMaskedText());
 		}
 		editingBefore = false;
 		editingOnChanged = false;
@@ -151,7 +154,7 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 
 				if (hasFocus()) {
 					selectionChanged = false;
-					MaskedEditText.this.setSelection(lastValidPosition());
+					//      setSelection(lastValidPosition());
 				}
 			}
 		});
@@ -168,9 +171,8 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		return getHint() != null;
 	}
 
-	public MaskedEditText(Context context, AttributeSet attrs, int defStyle) {
-		super(context, attrs, defStyle);
-		init();
+	public String getMask() {
+		return this.mask;
 	}
 
 	public void setMask(String mask) {
@@ -178,12 +180,12 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		cleanUp();
 	}
 
-	public String getMask() {
-		return this.mask;
-	}
-
 	public String getRawText() {
 		return this.rawText.getText();
+	}
+
+	public char getCharRepresentation() {
+		return this.charRepresentation;
 	}
 
 	public void setCharRepresentation(char charRepresentation) {
@@ -191,18 +193,14 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		cleanUp();
 	}
 
-	public char getCharRepresentation() {
-		return this.charRepresentation;
-	}
-
-    /**
-     *  Generates positions for values characters. For instance:
-     *  Input data: mask = "+7(###)###-##-##
-     *  After method execution:
-     *  rawToMask = [3, 4, 5, 6, 8, 9, 11, 12, 14, 15]
-     *  maskToRaw = [-1, -1, -1, 0, 1, 2, -1, 3, 4, 5, -1, 6, 7, -1, 8, 9]
-     *  charsInMask = "+7()- " (and space, yes)
-     */
+	/**
+	 *  Generates positions for values characters. For instance:
+	 *  Input data: mask = "+7(###)###-##-##
+	 *  After method execution:
+	 *  rawToMask = [3, 4, 5, 6, 8, 9, 11, 12, 14, 15]
+	 *  maskToRaw = [-1, -1, -1, 0, 1, 2, -1, 3, 4, 5, -1, 6, 7, -1, 8, 9]
+	 *  charsInMask = "+7()- " (and space, yes)
+	 */
 	private void generatePositionArrays() {
 		int[] aux = new int[mask.length()];
 		maskToRaw = new int[mask.length()];
@@ -241,7 +239,7 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 
 	@Override
 	public void beforeTextChanged(CharSequence s, int start, int count,
-			int after) {
+								  int after) {
 		if(!editingBefore) {
 			editingBefore = true;
 			if(start > lastValidMaskPosition) {
@@ -276,9 +274,14 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 				return;
 			}
 			if(count > 0) {
+
+				if (count > 1) {
+					rawText = new RawText();
+				}
+
 				int startingPosition = maskToRaw[nextValidPosition(start)];
 				String addedString = s.subSequence(start, start + count).toString();
-				count = rawText.addToString(clear(addedString), startingPosition, maxRawLength);
+				count = rawText.addToString(clear(addedString), startingPosition >= before && count > 1 ? before : startingPosition, maxRawLength);
 				if(initialized) {
 					int currentPosition;
 					if(startingPosition + count < rawToMask.length)
@@ -295,14 +298,14 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 	public void afterTextChanged(Editable s) {
 		if(!editingAfter && editingBefore && editingOnChanged) {
 			editingAfter = true;
-            if (hasHint() && (keepHint || rawText.length() == 0)) {
-                setText(makeMaskedTextWithHint());
+			if (hasHint() && (keepHint || rawText.length() == 0)) {
+				setText(makeMaskedTextWithHint());
 			} else {
-                setText(makeMaskedText());
-            }
+				setText(makeMaskedText());
+			}
 
 			selectionChanged = false;
-			setSelection(selection);
+			//  setSelection(selection);
 
 			editingBefore = false;
 			editingOnChanged = false;
@@ -325,32 +328,22 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 		// On Android 4+ this method is being called more than 1 time if there is a hint in the EditText, what moves the cursor to left
 		// Using the boolean var selectionChanged to limit to one execution
 
-		if(initialized ){
-			if(!selectionChanged) {
-                selStart = fixSelection(selStart);
-                selEnd = fixSelection(selEnd);
+		if (initialized) {
 
-				// exactly in this order. If getText.length() == 0 then selStart will be -1
-				if (selStart > getText().length()) selStart = getText().length();
-				if (selStart < 0) selStart = 0;
+			int len = getText().length();
 
-				// exactly in this order. If getText.length() == 0 then selEnd will be -1
-				if (selEnd > getText().length()) selEnd = getText().length();
-				if (selEnd < 0) selEnd = 0;
-
-				setSelection(selStart, selEnd);
-				selectionChanged = true;
-			} else{
-			    //check to see if the current selection is outside the already entered text
-				if(selStart > rawText.length() - 1){
-					final int start = fixSelection(selStart);
-					final int end = fixSelection(selEnd);
-					if (start >= 0 && end < getText().length()){
-						setSelection(start, end);
-					}
+			if (selStart > 0)
+				if (isSelected()) {
+					selStart = 0;
+					selEnd = len;
+				} else {
+					selStart = fixSelection(selStart);
+					selEnd = fixSelection(selEnd);
 				}
-			}
+
+			setSelection(selStart, selEnd);
 		}
+
 		super.onSelectionChanged(selStart, selEnd);
 	}
 
@@ -389,46 +382,46 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 
 
 	private String makeMaskedText() {
-        int maskedTextLength;
-        if (rawText.length() < rawToMask.length) {
-            maskedTextLength = rawToMask[rawText.length()];
-        } else {
-            maskedTextLength = mask.length();
-        }
+		int maskedTextLength;
+		if (rawText.length() < rawToMask.length) {
+			maskedTextLength = rawToMask[rawText.length()];
+		} else {
+			maskedTextLength = mask.length();
+		}
 		char[] maskedText = new char[maskedTextLength]; //mask.replace(charRepresentation, ' ').toCharArray();
-        for (int i = 0; i < maskedText.length; i++) {
-            int rawIndex = maskToRaw[i];
-            if (rawIndex == -1) {
-                maskedText[i] = mask.charAt(i);
-            } else {
-                maskedText[i] = rawText.charAt(rawIndex);
-            }
-        }
+		for (int i = 0; i < maskedText.length; i++) {
+			int rawIndex = maskToRaw[i];
+			if (rawIndex == -1) {
+				maskedText[i] = mask.charAt(i);
+			} else {
+				maskedText[i] = rawText.charAt(rawIndex);
+			}
+		}
 		return new String(maskedText);
 	}
 
-    private CharSequence makeMaskedTextWithHint() {
-        SpannableStringBuilder ssb = new SpannableStringBuilder();
-        int mtrv;
-        int maskFirstChunkEnd = rawToMask[0];
-        for(int i = 0; i < mask.length(); i++) {
-            mtrv = maskToRaw[i];
-            if (mtrv != -1) {
-                if (mtrv < rawText.length()) {
-                    ssb.append(rawText.charAt(mtrv));
-                } else {
-                    ssb.append(getHint().charAt(maskToRaw[i]));
-                }
-            } else {
-                ssb.append(mask.charAt(i));
-            }
-            if ((keepHint && rawText.length() < rawToMask.length && i >= rawToMask[rawText.length()])
-                    || (!keepHint && i >= maskFirstChunkEnd)) {
-                ssb.setSpan(new ForegroundColorSpan(getCurrentHintTextColor()), i, i + 1, 0);
-            }
-        }
-        return ssb;
-    }
+	private CharSequence makeMaskedTextWithHint() {
+		SpannableStringBuilder ssb = new SpannableStringBuilder();
+		int mtrv;
+		int maskFirstChunkEnd = rawToMask[0];
+		for(int i = 0; i < mask.length(); i++) {
+			mtrv = maskToRaw[i];
+			if (mtrv != -1) {
+				if (mtrv < rawText.length()) {
+					ssb.append(rawText.charAt(mtrv));
+				} else {
+					ssb.append(getHint().charAt(maskToRaw[i]));
+				}
+			} else {
+				ssb.append(mask.charAt(i));
+			}
+			if ((keepHint && rawText.length() < rawToMask.length && i >= rawToMask[rawText.length()])
+					|| (!keepHint && i >= maskFirstChunkEnd)) {
+				ssb.setSpan(new ForegroundColorSpan(getCurrentHintTextColor()), i, i + 1, 0);
+			}
+		}
+		return ssb;
+	}
 
 	private Range calculateRange(int start, int end) {
 		Range range = new Range();
@@ -453,23 +446,23 @@ public class MaskedEditText extends AppCompatEditText implements TextWatcher {
 	}
 
 	private String clear(String string) {
-        if (deniedChars != null){
-            for(char c: deniedChars.toCharArray()){
-			    string = string.replace(Character.toString(c), "");
-            }
-        }
+		if (deniedChars != null){
+			for(char c: deniedChars.toCharArray()){
+				string = string.replace(Character.toString(c), "");
+			}
+		}
 
-        if (allowedChars != null){
-            StringBuilder builder = new StringBuilder(string.length());
+		if (allowedChars != null){
+			StringBuilder builder = new StringBuilder(string.length());
 
-            for(char c: string.toCharArray() ){
-                if (allowedChars.contains(String.valueOf(c) )){
-                    builder.append(c);
-                }
-            }
+			for(char c: string.toCharArray() ){
+				if (allowedChars.contains(String.valueOf(c) )){
+					builder.append(c);
+				}
+			}
 
-            string = builder.toString();
-        }
+			string = builder.toString();
+		}
 
 		return string;
 	}
